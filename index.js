@@ -5,34 +5,35 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 8000;  
+const PORT = process.env.PORT || 8000;
+const backendURL = process.env.BACKEND_URL || `http://localhost:${PORT}`; // Uses env variable if available
 
 app.use(cors());
 
 // Serve the "downloads" folder for static file access
-app.use("/downloads", express.static(path.join(__dirname, "downloads")));
+const downloadsDir = path.join(__dirname, "downloads");
+if (!fs.existsSync(downloadsDir)) {
+    fs.mkdirSync(downloadsDir, { recursive: true });
+}
+app.use("/downloads", express.static(downloadsDir));
 
 app.get("/download", async (req, res) => {
     try {
-        const { url, format } = req.query;
+        let { url, format } = req.query;
 
         if (!url || !format) {
             return res.status(400).json({ error: "Missing URL or format" });
         }
 
-        // Ensure "downloads" directory exists
-        const downloadsDir = path.join(__dirname, "downloads");
-        if (!fs.existsSync(downloadsDir)) {
-            fs.mkdirSync(downloadsDir, { recursive: true });
-        }
+        url = decodeURIComponent(url); // Ensure special characters are handled
+        format = format.toLowerCase();
 
         // Generate a unique filename
         const timestamp = Date.now();
         const outputFileBase = path.join(downloadsDir, `output-${timestamp}`);
 
-        // Use Python command to run yt-dlp
+        // Construct yt-dlp command
         let command = `python -m yt_dlp -o "${outputFileBase}.%(ext)s"`;
-        
         if (format === "mp3") {
             command += " --extract-audio --audio-format mp3";
         }
@@ -43,9 +44,11 @@ app.get("/download", async (req, res) => {
 
         exec(command, (error, stdout, stderr) => {
             if (error) {
-                console.error("Download failed:", error);
+                console.error("Download failed:", stderr);
                 return res.status(500).json({ error: "Download error", details: stderr });
             }
+
+            console.log("Download complete, checking files...");
 
             // Get the actual downloaded file name
             fs.readdir(downloadsDir, (err, files) => {
@@ -54,14 +57,14 @@ app.get("/download", async (req, res) => {
                     return res.status(500).json({ error: "Server error" });
                 }
 
-                // Find the correct file based on timestamp
+                // Find the correct file
                 const downloadedFile = files.find(file => file.includes(`output-${timestamp}`));
                 if (!downloadedFile) {
                     return res.status(500).json({ error: "File not found after download" });
                 }
 
-                // Update download link to use localhost instead of Railway
-                const downloadLink = `http://localhost:${PORT}/downloads/${downloadedFile}`;
+                // Generate download link
+                const downloadLink = `${backendURL}/downloads/${downloadedFile}`;
                 res.json({ success: true, downloadLink });
             });
         });
@@ -72,4 +75,4 @@ app.get("/download", async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Server running on ${backendURL}`));
