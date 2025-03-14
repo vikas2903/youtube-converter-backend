@@ -5,40 +5,65 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 7000;  // Railway assigns a dynamic PORT
+const PORT = process.env.PORT || 8000;  
 
 app.use(cors());
 
-// Serve the downloads folder
+// Serve the "downloads" folder for static file access
 app.use("/downloads", express.static(path.join(__dirname, "downloads")));
 
 app.get("/download", async (req, res) => {
     try {
         const { url, format } = req.query;
+
         if (!url || !format) {
             return res.status(400).json({ error: "Missing URL or format" });
         }
 
+        // Ensure "downloads" directory exists
         const downloadsDir = path.join(__dirname, "downloads");
         if (!fs.existsSync(downloadsDir)) {
-            fs.mkdirSync(downloadsDir);
+            fs.mkdirSync(downloadsDir, { recursive: true });
         }
 
+        // Generate a unique filename
         const timestamp = Date.now();
-        const outputFile = path.join(downloadsDir, `output-${timestamp}.${format}`);
+        const outputFileBase = path.join(downloadsDir, `output-${timestamp}`);
 
-        console.log(`Downloading ${format}...`);
-        const command = `yt-dlp -o "${outputFile}" ${format === "mp3" ? "--extract-audio --audio-format mp3" : ""} "${url}"`;
+        // Use Python command to run yt-dlp
+        let command = `python -m yt_dlp -o "${outputFileBase}.%(ext)s"`;
+        
+        if (format === "mp3") {
+            command += " --extract-audio --audio-format mp3";
+        }
+
+        command += ` "${url}"`;
+
+        console.log(`Executing command: ${command}`);
 
         exec(command, (error, stdout, stderr) => {
             if (error) {
                 console.error("Download failed:", error);
                 return res.status(500).json({ error: "Download error", details: stderr });
             }
-            
-            // ✅ Corrected Download Link (Uses Railway URL)
-            const downloadLink = `https://youtube-converter-backend-production.up.railway.app/downloads/${path.basename(outputFile)}`;
-            res.json({ success: true, downloadLink });
+
+            // Get the actual downloaded file name
+            fs.readdir(downloadsDir, (err, files) => {
+                if (err) {
+                    console.error("Error reading download directory:", err);
+                    return res.status(500).json({ error: "Server error" });
+                }
+
+                // Find the correct file based on timestamp
+                const downloadedFile = files.find(file => file.includes(`output-${timestamp}`));
+                if (!downloadedFile) {
+                    return res.status(500).json({ error: "File not found after download" });
+                }
+
+                // Update download link to use localhost instead of Railway
+                const downloadLink = `http://localhost:${PORT}/downloads/${downloadedFile}`;
+                res.json({ success: true, downloadLink });
+            });
         });
 
     } catch (error) {
@@ -47,5 +72,4 @@ app.get("/download", async (req, res) => {
     }
 });
 
-// Start the server
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
