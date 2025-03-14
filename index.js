@@ -1,78 +1,78 @@
-const express = require("express");
-const cors = require("cors");
-const { exec } = require("child_process");
-const fs = require("fs");
-const path = require("path");
+const express = require('express');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+const { exec } = require('child_process');
+const youtubeDl = require('youtube-dl-exec');
 
 const app = express();
-const PORT = process.env.PORT || 8000;
-const backendURL = process.env.BACKEND_URL || `http://localhost:${PORT}`; // Uses env variable if available
+const PORT = 5000;
 
+// Set ffmpeg path
+ffmpeg.setFfmpegPath(ffmpegPath);
+
+// Middleware
 app.use(cors());
+app.use(express.json());
+app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 
-// Serve the "downloads" folder for static file access
-const downloadsDir = path.join(__dirname, "downloads");
+// Ensure downloads directory exists
+const downloadsDir = path.join(__dirname, 'downloads');
 if (!fs.existsSync(downloadsDir)) {
-    fs.mkdirSync(downloadsDir, { recursive: true });
+    fs.mkdirSync(downloadsDir);
 }
-app.use("/downloads", express.static(downloadsDir));
 
-app.get("/download", async (req, res) => {
+// Route: Convert YouTube Video to MP3
+app.get('/convert', async (req, res) => {
     try {
-        let { url, format } = req.query;
-
-        if (!url || !format) {
-            return res.status(400).json({ error: "Missing URL or format" });
+        const videoUrl = req.query.url;
+        if (!videoUrl) {
+            return res.status(400).json({ error: 'No URL provided' });
         }
 
-        url = decodeURIComponent(url); // Ensure special characters are handled
-        format = format.toLowerCase();
+        const videoId = videoUrl.split('v=')[1]?.split('&')[0] || new Date().getTime();
+        const outputFilePath = path.join(downloadsDir, `${videoId}.mp3`);
+        const tempFilePath = path.join(downloadsDir, `${videoId}.mp4`);
 
-        // Generate a unique filename
-        const timestamp = Date.now();
-        const outputFileBase = path.join(downloadsDir, `output-${timestamp}`);
-
-        // Construct yt-dlp command (using python3)
-        let command = `python3 -m yt_dlp -o "${outputFileBase}.%(ext)s"`;
-        if (format === "mp3") {
-            command += " --extract-audio --audio-format mp3";
+        // Check if file already exists
+        if (fs.existsSync(outputFilePath)) {
+            return res.json({ downloadUrl: `http://localhost:${PORT}/downloads/${videoId}.mp3` });
         }
 
-        command += ` "${url}"`;
+        console.log(`🔹 Downloading video: ${videoUrl}`);
 
-        console.log(`Executing command: ${command}`);
-
-        exec(command, (error, stdout, stderr) => {
-            if (error) {
-                console.error("Download failed:", stderr);
-                return res.status(500).json({ error: "Download error", details: stderr });
-            }
-
-            console.log("Download complete, checking files...");
-
-            // Get the actual downloaded file name
-            fs.readdir(downloadsDir, (err, files) => {
-                if (err) {
-                    console.error("Error reading download directory:", err);
-                    return res.status(500).json({ error: "Server error" });
-                }
-
-                // Find the correct file
-                const downloadedFile = files.find(file => file.includes(`output-${timestamp}`));
-                if (!downloadedFile) {
-                    return res.status(500).json({ error: "File not found after download" });
-                }
-
-                // Generate download link
-                const downloadLink = `${backendURL}/downloads/${downloadedFile}`;
-                res.json({ success: true, downloadLink });
-            });
+        // Download YouTube audio using youtube-dl
+        await youtubeDl(videoUrl, {
+            output: tempFilePath,
+            format: 'bestaudio',
         });
 
+        console.log('✅ Download complete. Converting to MP3...');
+
+        // Convert to MP3 using FFmpeg
+        ffmpeg(tempFilePath)
+            .audioBitrate(128)
+            .toFormat('mp3')
+            .save(outputFilePath)
+            .on('end', () => {
+                console.log(`✅ Conversion completed: ${outputFilePath}`);
+                fs.unlinkSync(tempFilePath); // Delete temporary file
+                res.json({ downloadUrl: `http://localhost:${PORT}/downloads/${videoId}.mp3` });
+            })
+            .on('error', err => {
+                console.error(`❌ FFmpeg error: ${err.message}`);
+                res.status(500).json({ error: 'Error converting the file' });
+            });
+
     } catch (error) {
-        console.error("Processing error:", error);
-        res.status(500).json({ error: "Processing error", details: error.message });
+        console.error(`❌ Server error: ${error.message}`);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-app.listen(PORT, () => console.log(`Server running on ${backendURL}`));
+// Start Server
+app.listen(PORT, () => {
+    console.log(`✅ Server is running at: http://localhost:${PORT}`);
+});
