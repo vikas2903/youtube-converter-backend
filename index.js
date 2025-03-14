@@ -32,8 +32,8 @@ app.get("/download", async (req, res) => {
         const timestamp = Date.now();
         const outputFileBase = path.join(downloadsDir, `output-${timestamp}`);
 
-        // Construct yt-dlp command
-        let command = `python -m yt_dlp -o "${outputFileBase}.%(ext)s"`;
+        // Construct yt-dlp command (using python3)
+        let command = `python3 -m yt_dlp -o "${outputFileBase}.%(ext)s"`;
         if (format === "mp3") {
             command += " --extract-audio --audio-format mp3";
         }
