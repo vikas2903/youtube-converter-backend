@@ -95,3 +95,4 @@ app.get("/download", async (req, res) => {
 });
 
 app.listen(7000, () => console.log("Server running on port 7000"));
+console.log("Server running on port 7000");
