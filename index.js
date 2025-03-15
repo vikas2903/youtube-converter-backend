@@ -43,10 +43,14 @@ app.get('/convert', async (req, res) => {
 
         console.log(`🔹 Downloading video: ${videoUrl}`);
 
-        // Download YouTube audio using youtube-dl
+        // Download YouTube audio using youtube-dl with Visitor Data bypass
         await youtubeDl(videoUrl, {
             output: tempFilePath,
             format: 'bestaudio',
+            extractorArgs: [
+                "youtubetab:skip=webpage",
+                "youtube:player_skip=webpage,configs;visitor_data=VISITOR_DATA"
+            ]
         });
 
         console.log('✅ Download complete. Converting to MP3...');
