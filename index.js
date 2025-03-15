@@ -4,11 +4,11 @@ const fs = require('fs');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
-const { exec } = require('child_process');
 const youtubeDl = require('youtube-dl-exec');
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
+const SERVER_URL = "https://youtube-converter-backend-cu2n.onrender.com"; // Render-hosted URL
 
 // Set ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -38,7 +38,7 @@ app.get('/convert', async (req, res) => {
 
         // Check if file already exists
         if (fs.existsSync(outputFilePath)) {
-            return res.json({ downloadUrl: `http://localhost:${PORT}/downloads/${videoId}.mp3` });
+            return res.json({ downloadUrl: `${SERVER_URL}/downloads/${videoId}.mp3` });
         }
 
         console.log(`🔹 Downloading video: ${videoUrl}`);
@@ -59,7 +59,7 @@ app.get('/convert', async (req, res) => {
             .on('end', () => {
                 console.log(`✅ Conversion completed: ${outputFilePath}`);
                 fs.unlinkSync(tempFilePath); // Delete temporary file
-                res.json({ downloadUrl: `http://localhost:${PORT}/downloads/${videoId}.mp3` });
+                res.json({ downloadUrl: `${SERVER_URL}/downloads/${videoId}.mp3` });
             })
             .on('error', err => {
                 console.error(`❌ FFmpeg error: ${err.message}`);
@@ -74,5 +74,5 @@ app.get('/convert', async (req, res) => {
 
 // Start Server
 app.listen(PORT, () => {
-    console.log(`✅ Server is running at: http://localhost:${PORT}`);
+    console.log(`✅ Server is running at: ${SERVER_URL}`);
 });
