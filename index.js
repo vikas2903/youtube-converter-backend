@@ -34,6 +34,45 @@ if (useCookies) {
   console.log(`⚠️ No cookies.txt file found. Some videos may require authentication.`);
 }
 
+async function downloadWithRetries(videoUrl, tempFilePath, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      console.log(`🔹 Attempt ${attempt}: Downloading video...`);
+      const ytOptions = {
+        output: tempFilePath,
+        format: "bestaudio",
+        addHeader: [
+          "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
+          "Referer: https://www.youtube.com/",
+        ],
+        throttledRate: "500K", // Reduce rate to avoid 429 error
+      };
+      
+      if (useCookies) {
+        ytOptions.cookies = cookiesPath;
+      } else {
+        ytOptions.cookiesFromBrowser = "chrome"; // Use Chrome cookies if cookies.txt fails
+      }
+      
+      await youtubeDl(videoUrl, ytOptions);
+      return true; // Success
+    } catch (ytError) {
+      console.error(`❌ yt-dlp error (Attempt ${attempt}): ${ytError.message}`);
+      
+      if (ytError.message.includes("Sign in to confirm you’re not a bot")) {
+        throw new Error("YouTube requires authentication. Check cookies.txt and try again.");
+      }
+      
+      if (ytError.message.includes("HTTP Error 429")) {
+        console.log("⏳ Rate limit reached, waiting before retrying...");
+        await new Promise(res => setTimeout(res, 30000)); // Wait 30 seconds
+      }
+      
+      if (attempt === retries) throw new Error("YouTube download failed after multiple attempts.");
+    }
+  }
+}
+
 app.get("/convert", async (req, res) => {
   try {
     const videoUrl = req.query.url;
@@ -52,44 +91,7 @@ app.get("/convert", async (req, res) => {
     }
 
     console.log(`🔹 Downloading video: ${videoUrl}`);
-
-    // Download YouTube audio using yt-dlp with cookies and headers
-    try {
-      const ytOptions = {
-        output: tempFilePath,
-        format: "bestaudio",
-        addHeader: [
-          "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
-          "Referer: https://www.youtube.com/",
-        ],
-        throttledRate: "1M", // Prevents 429 error by limiting speed
-      };
-
-      // Use cookies only if available
-      if (useCookies) {
-        ytOptions.cookies = cookiesPath;
-      }
-
-      await youtubeDl(videoUrl, ytOptions);
-    } catch (ytError) {
-      console.error(`❌ yt-dlp error: ${ytError.message}`);
-
-      // Detect CAPTCHA error (requires authentication)
-      if (ytError.message.includes("Sign in to confirm you’re not a bot")) {
-        return res.status(403).json({
-          error: "YouTube requires authentication. Check cookies.txt and try again.",
-        });
-      }
-
-      // Detect Rate Limit (HTTP 429)
-      if (ytError.message.includes("HTTP Error 429")) {
-        return res.status(429).json({
-          error: "Too many requests. Please wait a few minutes and try again.",
-        });
-      }
-
-      return res.status(500).json({ error: "YouTube download failed. Try updating cookies.txt" });
-    }
+    await downloadWithRetries(videoUrl, tempFilePath);
 
     console.log("✅ Download complete. Converting to MP3...");
 
@@ -110,7 +112,7 @@ app.get("/convert", async (req, res) => {
 
   } catch (error) {
     console.error(`❌ Server error: ${error.message}`);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: error.message || "Internal server error" });
   }
 });
 
