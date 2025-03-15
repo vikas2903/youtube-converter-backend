@@ -8,7 +8,7 @@ const youtubeDl = require("youtube-dl-exec");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const SERVER_URL = "https://youtube-converter-backend-cu2n.onrender.com"; // Your Render-hosted backend URL
+const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`; // Auto-detect local or live
 
 // Set ffmpeg path
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -34,8 +34,9 @@ if (useCookies) {
   console.log(`⚠️ No cookies.txt file found. Some videos may require authentication.`);
 }
 
-async function downloadWithRetries(videoUrl, tempFilePath, retries = 3) {
-  for (let attempt = 1; attempt <= retries; attempt++) {
+// Function to handle YouTube download retries
+async function downloadWithRetries(videoUrl, tempFilePath, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`🔹 Attempt ${attempt}: Downloading video...`);
       const ytOptions = {
@@ -45,30 +46,30 @@ async function downloadWithRetries(videoUrl, tempFilePath, retries = 3) {
           "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
           "Referer: https://www.youtube.com/",
         ],
-        throttledRate: "500K", // Reduce rate to avoid 429 error
+        throttledRate: "500K", // Reduce speed to avoid 429 error
       };
-      
+
       if (useCookies) {
         ytOptions.cookies = cookiesPath;
       } else {
-        ytOptions.cookiesFromBrowser = "chrome"; // Use Chrome cookies if cookies.txt fails
+        ytOptions.cookiesFromBrowser = "chrome"; // Try Chrome cookies if cookies.txt fails
       }
-      
+
       await youtubeDl(videoUrl, ytOptions);
       return true; // Success
     } catch (ytError) {
       console.error(`❌ yt-dlp error (Attempt ${attempt}): ${ytError.message}`);
-      
+
       if (ytError.message.includes("Sign in to confirm you’re not a bot")) {
-        throw new Error("YouTube requires authentication. Check cookies.txt and try again.");
+        throw new Error("YouTube requires authentication. Update cookies.txt and try again.");
       }
-      
+
       if (ytError.message.includes("HTTP Error 429")) {
         console.log("⏳ Rate limit reached, waiting before retrying...");
-        await new Promise(res => setTimeout(res, 30000)); // Wait 30 seconds
+        await new Promise(res => setTimeout(res, 30000 * attempt)); // Exponential backoff (30s, 60s, 90s)
       }
-      
-      if (attempt === retries) throw new Error("YouTube download failed after multiple attempts.");
+
+      if (attempt === maxRetries) throw new Error("YouTube download failed after multiple attempts.");
     }
   }
 }
@@ -80,11 +81,11 @@ app.get("/convert", async (req, res) => {
       return res.status(400).json({ error: "No URL provided" });
     }
 
-    const videoId = videoUrl.split("v=")[1]?.split("&")[0] || new Date().getTime();
+    const videoId = new URL(videoUrl).searchParams.get("v") || Date.now();
     const outputFilePath = path.join(downloadsDir, `${videoId}.mp3`);
     const tempFilePath = path.join(downloadsDir, `${videoId}.mp4`);
 
-    // Check if MP3 file already exists (serve cached version)
+    // Serve cached MP3 file if it exists
     if (fs.existsSync(outputFilePath)) {
       console.log(`♻️ Serving cached file: ${outputFilePath}`);
       return res.json({ downloadUrl: `${SERVER_URL}/downloads/${videoId}.mp3` });
@@ -102,7 +103,7 @@ app.get("/convert", async (req, res) => {
       .save(outputFilePath)
       .on("end", () => {
         console.log(`✅ Conversion completed: ${outputFilePath}`);
-        fs.unlinkSync(tempFilePath); // Delete temporary .mp4 file
+        fs.unlinkSync(tempFilePath); // Delete temporary file
         res.json({ downloadUrl: `${SERVER_URL}/downloads/${videoId}.mp3` });
       })
       .on("error", (err) => {
