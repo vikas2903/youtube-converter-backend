@@ -47,11 +47,17 @@ app.get('/convert', async (req, res) => {
         console.log(`🔹 Downloading video: ${videoUrl}`);
 
         // Download YouTube audio using yt-dlp with Cookies
-        await youtubeDl(videoUrl, {
-            output: tempFilePath,
-            format: 'bestaudio',
-            cookies: useCookies ? cookiesPath : undefined,
-        });
+        try {
+            await youtubeDl(videoUrl, {
+                output: tempFilePath,
+                format: 'bestaudio',
+                cookies: useCookies ? cookiesPath : undefined,
+                addHeader: ['User-Agent: Mozilla/5.0', 'Referer: https://www.youtube.com/'],
+            });
+        } catch (ytError) {
+            console.error(`❌ yt-dlp error: ${ytError.message}`);
+            return res.status(500).json({ error: 'YouTube download failed. Try updating cookies.txt' });
+        }
 
         console.log('✅ Download complete. Converting to MP3...');
 
