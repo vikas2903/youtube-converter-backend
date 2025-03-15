@@ -53,12 +53,16 @@ app.get("/convert", async (req, res) => {
 
     console.log(`🔹 Downloading video: ${videoUrl}`);
 
-    // Download YouTube audio using yt-dlp with cookies
+    // Download YouTube audio using yt-dlp with cookies and headers
     try {
       const ytOptions = {
         output: tempFilePath,
         format: "bestaudio",
-        addHeader: ["User-Agent: Mozilla/5.0", "Referer: https://www.youtube.com/"],
+        addHeader: [
+          "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
+          "Referer: https://www.youtube.com/",
+        ],
+        throttledRate: "1M", // Prevents 429 error by limiting speed
       };
 
       // Use cookies only if available
@@ -74,6 +78,13 @@ app.get("/convert", async (req, res) => {
       if (ytError.message.includes("Sign in to confirm you’re not a bot")) {
         return res.status(403).json({
           error: "YouTube requires authentication. Check cookies.txt and try again.",
+        });
+      }
+
+      // Detect Rate Limit (HTTP 429)
+      if (ytError.message.includes("HTTP Error 429")) {
+        return res.status(429).json({
+          error: "Too many requests. Please wait a few minutes and try again.",
         });
       }
 
