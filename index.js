@@ -28,6 +28,7 @@ if (!fs.existsSync(downloadsDir)) {
 app.get('/convert', async (req, res) => {
     try {
         const videoUrl = req.query.url;
+        consoleole.log(`🔹 Downloading video: ${videoUrl}`);
         if (!videoUrl) {
             return res.status(400).json({ error: 'No URL provided' });
         }
@@ -43,14 +44,19 @@ app.get('/convert', async (req, res) => {
 
         console.log(`🔹 Downloading video: ${videoUrl}`);
 
-        // Download YouTube audio using youtube-dl with Visitor Data bypass
+        // Check if cookies file exists
+        const cookiesPath = path.join(__dirname, 'cookies.txt');
+        const useCookies = fs.existsSync(cookiesPath);
+        
+        // Download YouTube audio using youtube-dl with Visitor Data bypass and optional cookies
         await youtubeDl(videoUrl, {
             output: tempFilePath,
             format: 'bestaudio',
             extractorArgs: [
                 "youtubetab:skip=webpage",
                 "youtube:player_skip=webpage,configs;visitor_data=VISITOR_DATA"
-            ]
+            ],
+            cookies: useCookies ? cookiesPath : undefined
         });
 
         console.log('✅ Download complete. Converting to MP3...');
