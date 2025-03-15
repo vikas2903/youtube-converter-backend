@@ -24,7 +24,10 @@ if (!fs.existsSync(downloadsDir)) {
     fs.mkdirSync(downloadsDir);
 }
 
-// Route: Convert YouTube Video to MP3
+// Check if cookies.txt exists
+const cookiesPath = path.join(__dirname, 'cookies.txt');
+const useCookies = fs.existsSync(cookiesPath);
+
 app.get('/convert', async (req, res) => {
     try {
         const videoUrl = req.query.url;
@@ -43,19 +46,11 @@ app.get('/convert', async (req, res) => {
 
         console.log(`🔹 Downloading video: ${videoUrl}`);
 
-        // Check if cookies.txt exists for authentication
-        const cookiesFile = path.join(__dirname, 'cookies.txt');
-        const useCookies = fs.existsSync(cookiesFile);
-
-        // Download YouTube audio using yt-dlp with Visitor Data bypass & Cookies
+        // Download YouTube audio using yt-dlp with Cookies
         await youtubeDl(videoUrl, {
             output: tempFilePath,
             format: 'bestaudio',
-            extractorArgs: [
-                "youtubetab:skip=webpage",
-                "youtube:player_skip=webpage,configs;visitor_data=VISITOR_DATA"
-            ],
-            cookies: useCookies ? cookiesFile : undefined // Use cookies if available
+            cookies: useCookies ? cookiesPath : undefined,
         });
 
         console.log('✅ Download complete. Converting to MP3...');
