@@ -24,9 +24,15 @@ if (!fs.existsSync(downloadsDir)) {
   fs.mkdirSync(downloadsDir);
 }
 
-// Check if cookies.txt exists
+// Path to cookies.txt file
 const cookiesPath = path.join(__dirname, "cookies.txt");
 const useCookies = fs.existsSync(cookiesPath);
+
+if (useCookies) {
+  console.log(`✅ Using cookies from: ${cookiesPath}`);
+} else {
+  console.log(`⚠️ No cookies.txt file found. Some videos may require authentication.`);
+}
 
 app.get("/convert", async (req, res) => {
   try {
@@ -39,8 +45,9 @@ app.get("/convert", async (req, res) => {
     const outputFilePath = path.join(downloadsDir, `${videoId}.mp3`);
     const tempFilePath = path.join(downloadsDir, `${videoId}.mp4`);
 
-    // Check if the MP3 file already exists (serve cached version)
+    // Check if MP3 file already exists (serve cached version)
     if (fs.existsSync(outputFilePath)) {
+      console.log(`♻️ Serving cached file: ${outputFilePath}`);
       return res.json({ downloadUrl: `${SERVER_URL}/downloads/${videoId}.mp3` });
     }
 
@@ -48,19 +55,25 @@ app.get("/convert", async (req, res) => {
 
     // Download YouTube audio using yt-dlp with cookies
     try {
-      await youtubeDl(videoUrl, {
+      const ytOptions = {
         output: tempFilePath,
         format: "bestaudio",
-        cookies: useCookies ? cookiesPath : undefined,
         addHeader: ["User-Agent: Mozilla/5.0", "Referer: https://www.youtube.com/"],
-      });
+      };
+
+      // Use cookies only if available
+      if (useCookies) {
+        ytOptions.cookies = cookiesPath;
+      }
+
+      await youtubeDl(videoUrl, ytOptions);
     } catch (ytError) {
       console.error(`❌ yt-dlp error: ${ytError.message}`);
 
-      // Detect CAPTCHA error (requires cookies)
+      // Detect CAPTCHA error (requires authentication)
       if (ytError.message.includes("Sign in to confirm you’re not a bot")) {
         return res.status(403).json({
-          error: "YouTube requires authentication. Add cookies.txt and try again.",
+          error: "YouTube requires authentication. Check cookies.txt and try again.",
         });
       }
 
