@@ -40,7 +40,7 @@ async function downloadWithRetries(videoUrl, tempFilePath, maxRetries = 3) {
     try {
       console.log(`🔹 Attempt ${attempt}: Downloading video...`);
       const ytOptions = {
-        output: tempFilePath.replace(/\.[^.]+$/, ""), // Remove extension
+        output: tempFilePath,
         format: "bestaudio",
         addHeader: [
           "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
@@ -55,22 +55,8 @@ async function downloadWithRetries(videoUrl, tempFilePath, maxRetries = 3) {
         ytOptions.cookiesFromBrowser = "chrome"; // Try Chrome cookies if cookies.txt fails
       }
 
-      // Execute yt-dlp and wait for it to finish
-      const { stderr } = await youtubeDl(videoUrl, ytOptions);
-      
-      // Debugging yt-dlp output
-      if (stderr) {
-        console.error(`❌ yt-dlp stderr (Attempt ${attempt}): ${stderr}`);
-      }
-
-      // Check if file was created
-      const downloadedFiles = fs.readdirSync(downloadsDir).filter(file => file.includes(path.basename(tempFilePath)));
-      if (downloadedFiles.length === 0) {
-        throw new Error("yt-dlp did not create any file.");
-      }
-
-      return path.join(downloadsDir, downloadedFiles[0]); // Return correct temp file path
-
+      await youtubeDl(videoUrl, ytOptions);
+      return true; // Success
     } catch (ytError) {
       console.error(`❌ yt-dlp error (Attempt ${attempt}): ${ytError.message}`);
 
@@ -81,10 +67,6 @@ async function downloadWithRetries(videoUrl, tempFilePath, maxRetries = 3) {
       if (ytError.message.includes("HTTP Error 429")) {
         console.log("⏳ Rate limit reached, waiting before retrying...");
         await new Promise(res => setTimeout(res, 30000 * attempt)); // Exponential backoff (30s, 60s, 90s)
-      }
-
-      if (ytError.message.includes("HTTP Error 403") || ytError.message.includes("HTTP Error 404")) {
-        throw new Error("YouTube video is restricted or not found.");
       }
 
       if (attempt === maxRetries) throw new Error("YouTube download failed after multiple attempts.");
@@ -101,7 +83,7 @@ app.get("/convert", async (req, res) => {
 
     const videoId = new URL(videoUrl).searchParams.get("v") || Date.now();
     const outputFilePath = path.join(downloadsDir, `${videoId}.mp3`);
-    const tempFilePath = path.join(downloadsDir, `${videoId}.webm`); // Use webm for audio
+    const tempFilePath = path.join(downloadsDir, `${videoId}.mp4`);
 
     // Serve cached MP3 file if it exists
     if (fs.existsSync(outputFilePath)) {
@@ -110,18 +92,18 @@ app.get("/convert", async (req, res) => {
     }
 
     console.log(`🔹 Downloading video: ${videoUrl}`);
-    const actualTempFile = await downloadWithRetries(videoUrl, tempFilePath);
+    await downloadWithRetries(videoUrl, tempFilePath);
 
     console.log("✅ Download complete. Converting to MP3...");
 
     // Convert to MP3 using FFmpeg
-    ffmpeg(actualTempFile)
+    ffmpeg(tempFilePath)
       .audioBitrate(128)
       .toFormat("mp3")
       .save(outputFilePath)
       .on("end", () => {
         console.log(`✅ Conversion completed: ${outputFilePath}`);
-        fs.unlinkSync(actualTempFile); // Delete temporary file
+        fs.unlinkSync(tempFilePath); // Delete temporary file
         res.json({ downloadUrl: `${SERVER_URL}/downloads/${videoId}.mp3` });
       })
       .on("error", (err) => {
