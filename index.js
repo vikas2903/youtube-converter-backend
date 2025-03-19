@@ -29,7 +29,8 @@ if (!fs.existsSync(downloadsDir)) {
 async function downloadAudio(videoUrl, tempFilePath) {
   
   // const cookiesPath = '/etc/secrets/YOUTUBE_COOKIES';  // Path 
-  const cookiesPath = '/etc/secrets/YOUTUBE_COOKIES'; 
+  // const cookiesPath = '/etc/secrets/YOUTUBE_COOKIES'; 
+  const cookiesPath = process.env.YOUTUBE_COOKIES;
   const writableCookiesPath = '/tmp/YOUTUBE_COOKIES';  // Writable path
  
   // Copy cookies to a writable location
