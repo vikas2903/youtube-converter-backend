@@ -34,8 +34,8 @@ async function downloadAudio(videoUrl, tempFilePath) {
  
   // Copy cookies to a writable location
   fs.copyFileSync(cookiesPath, writableCookiesPath);
-    console.log(writableCookiesPath);
-
+    console.log("writableCookiesPath", writableCookiesPath);
+    console.log("cookiesPath", cookiesPath);
   return new Promise((resolve, reject) => {
     // const command = `yt-dlp --cookies "${cookiesPath}" -f bestaudio --output "${tempFilePath}" ${videoUrl}`;
 
