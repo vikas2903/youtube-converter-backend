@@ -141,7 +141,7 @@ app.get("/convert", async (req, res) => {
     }
 
     console.log(`🔹 Downloading video: ${videoUrl}`);
-    const actualTempFile = await downloadWithRetries(videoUrl, tempFilePath);
+    const actualTempFile = await downloadAudio(videoUrl, tempFilePath);
 
     console.log("✅ Download complete. Converting to MP3...");
 
