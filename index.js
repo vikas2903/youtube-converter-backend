@@ -19,6 +19,7 @@ app.use(express.json());
 app.use("/downloads", express.static(path.join(__dirname, "downloads")));
 
 // Ensure downloads directory exists
+console.log("may be working[0]")
 const downloadsDir = path.join(__dirname, "downloads");
 if (!fs.existsSync(downloadsDir)) {
   fs.mkdirSync(downloadsDir);
@@ -80,3 +81,4 @@ app.get("/convert", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running at: ${SERVER_URL}`);
 });
+console.log("may be working[0]")
