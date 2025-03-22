@@ -86,18 +86,22 @@ app.get("/convert", async (req, res) => {
     await downloadAudio(videoUrl, tempFilePath);
 
     console.log("Converting to MP3...");
-    ffmpeg(tempFilePath)
-      .audioBitrate(128)
-      .toFormat("mp3")
-      .save(outputFilePath)
-      .on("end", () => {
-        fs.unlinkSync(tempFilePath);
-        res.json({ downloadUrl: `${SERVER_URL}/downloads/${videoId}.mp3` });
-      })
-      .on("error", (err) => {
-        console.error(`FFmpeg error: ${err.message}`);
-        res.status(500).json({ error: "Error converting file" });
-      });
+    const ffmpegPath = require('ffmpeg-static');
+    console.log('ffmpegPath',ffmpegPath)
+ffmpeg(tempFilePath)
+  .setFfmpegPath(ffmpegPath) // Explicitly set FFmpeg path
+  .audioBitrate(128)
+  .toFormat("mp3")
+  .save(outputFilePath)
+  .on("end", () => {
+    fs.unlinkSync(tempFilePath);
+    res.json({ downloadUrl: `${SERVER_URL}/downloads/${videoId}.mp3` });
+  })
+  .on("error", (err) => {
+    console.error(`FFmpeg error: ${err.message}`);
+    res.status(500).json({ error: "Error converting file" });
+  });
+
   } catch (error) {
     console.error(`Server error: ${error.message}`);
     res.status(500).json({ error: error.message || "Internal server error" });
