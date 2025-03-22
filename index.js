@@ -27,21 +27,26 @@ if (!fs.existsSync(downloadsDir)) {
 
 // Function to download YouTube audio
 async function downloadAudio(videoUrl, tempFilePath) {
-  
+
+  try{
+  // return new Promise((resolve, reject) => {
+  //   const command = `yt-dlp -f bestaudio --output \"${tempFilePath}\" ${videoUrl}`;
+
   // const cookiesPath = '/etc/secrets/YOUTUBE_COOKIES';  // Path 
   // const cookiesPath = '/etc/secrets/YOUTUBE_COOKIES'; 
-  const cookiesPath = process.env.YOUTUBE_COOKIES;
-  const writableCookiesPath = '/tmp/YOUTUBE_COOKIES';  // Writable path
+  const cookiesPath ='/cookies.txt';
+ // const writableCookiesPath = '/tmp/YOUTUBE_COOKIES';  // Writable path
  
   // Copy cookies to a writable location
-  fs.copyFileSync(cookiesPath, writableCookiesPath);
-    console.log("writableCookiesPath", writableCookiesPath);
-    console.log("cookiesPath", cookiesPath);
+  // fs.copyFileSync(cookiesPath, writableCookiesPath);
+  //   console.log("writableCookiesPath", writableCookiesPath);
+  //   console.log("cookiesPath", cookiesPath);
   return new Promise((resolve, reject) => {
     // const command = `yt-dlp --cookies "${cookiesPath}" -f bestaudio --output "${tempFilePath}" ${videoUrl}`;
 
-      const command = `yt-dlp --cookies "${writableCookiesPath}" -f bestaudio --output "${tempFilePath}" ${videoUrl}`;
+      const command = `yt-dlp --cookies "${cookiesPath}" -f bestaudio --output "${tempFilePath}" ${videoUrl}`;
     
+      console.log('command',command)
     exec(command, (error, stdout, stderr) => {
       if (error) {
         console.error(`yt-dlp error: ${stderr}`);
@@ -51,6 +56,10 @@ async function downloadAudio(videoUrl, tempFilePath) {
       resolve(tempFilePath);
     });
   });
+}
+catch(err){
+  console.log(err)
+}
 }
 
 app.get("/convert", async (req, res) => {
