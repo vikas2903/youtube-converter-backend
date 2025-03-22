@@ -34,7 +34,12 @@ async function downloadAudio(videoUrl, tempFilePath) {
 
   // const cookiesPath = '/etc/secrets/YOUTUBE_COOKIES';  // Path 
   // const cookiesPath = '/etc/secrets/YOUTUBE_COOKIES'; 
-  const cookiesPath ='/cookies.txt';
+  const cookiesPath ='./temp/cookies.txt';
+     // Check if cookies file exists
+     if (!fs.existsSync(cookiesPath)) {
+      console.error("Cookies file not found:", cookiesPath);
+      throw new Error("Cookies file missing. Make sure it is in /tmp.");
+    }
  // const writableCookiesPath = '/tmp/YOUTUBE_COOKIES';  // Writable path
  
   // Copy cookies to a writable location
