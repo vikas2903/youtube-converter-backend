@@ -1,0 +1,5 @@
+{
+  "start": "python3 your_script.py",
+  "install": "pip install -r requirements.txt",
+  "python": "3.x.x"  // Replace with the desired version, e.g., "3.9.7"
+}
